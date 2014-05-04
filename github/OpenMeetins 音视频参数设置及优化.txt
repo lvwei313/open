@@ -1,0 +1,173 @@
+http://www.rootop.org/pages/136.html
+
+OpenMeetings是一个基于Flash视频的视频会议系统，它的后台是基于开源的流媒体服务器RED5做的二次开发，而前台实质上是一个采用OpenLaszlo开发的Flash。也就是说，OpenMeetings的客户端必须运行在Flash环境下。因此，我们不妨把PC机上的Flash Player看作是一个OS（操作系统），而把OpenMeetings的前台（swf文件）当作该操作系统下的一个可执行程序。这样的思路下，我们就可以理解，就如我们在Windows下开发依赖于硬件的应用程序时必须要借助 WINDOWS API的支持一样，OpenMeetings的客户端也极度依赖Flash环境所能提供的功能和性能，尤其是和音频视频相关的地方。
+
+二、OpenMeetings流媒体采集和编码
+
+Flash视频的客户端采集视频和音频信号后由Flash插件完成音视频编码，编码算法是封闭的，据说采用的编码协议是H.323（视频编码为H.263），应用开发者无法优化这一块。
+
+OpenMeetings调用摄像头时并创建一个广播流时，我们来看看Flash做了哪些动作：
+
+l   捕获摄像头信号
+
+l   进行视频压缩编码
+
+l   创建一个基于RTMP协议的流与RED5建立连接
+
+l   将经过视频压缩编码后的数据按照RTMP协议进行信道编码
+
+l   将信道编码后的数据放入流中
+
+我们可以发现，Flash自动帮我们完成了大部分的工作，所以开发基于Flash的流媒体应用是一件相当轻松愉快的事情。然而，事物总是具备两面性的，Flash的封闭性使我们无从着手改进音视频的压缩编码算法，更谈不上改进RTMP协议传输协议。能改善性能的地方都被牢牢地封闭在黑箱子里，就好比我们要参加汽车节油比赛时，却发现手里只有一辆纯自动档的汽车，让你空有一身车技却无用武之地时，郁闷更是无与伦比。
+
+三、OpenMeetings公网上应用的带宽瓶颈
+
+在国内，大多数家庭用户和中小型企业接入都采用ADSL线路。我们知道，ADSL是一种不对称线路，即下行带宽大，而上行带宽很小，大约只占下行带宽的四分之一。512K的ADSL线路，上行带宽大约为128Kbit，即不到20KB的码流。
+
+OpenMeetings默认用户视频设置参数为30帧/秒（FPS）、分辨率为320*240、质量为90，要求稳定的上传带宽为50KB左右，如果再加上10Kb~20Kb的音频信号，就要求在50KB~70KB的上行码流才能无损地向其它用户广播。
+
+       Flash对于音频采集和编码的效率也很一般，采样速率为22K时，其音频压缩编码后的码流速率一般为10KB；采用默认采样率为44K时，码流速率为16KB左右。也就是说，512K的ADSL线路仅能保障较高质量的音频要求。
+
+两者的差距巨大，因此，如果按照OpenMeetings的默认设置部署在公网上，很多用户会感觉到别人的视频或音频非常卡，不流畅。其实这大多数情况不是你网络接收的问题，而是视频发布者的上行带宽不能适应系统的要求。我们知道，在网络上，流媒体数据一般是采用UDP协议来传输的，UDP协议比TCP的开销小，但更容易丢帧，其接受的数据包也不是顺序的，一旦由于带宽的问题导致客户端很长时间无法收全一个视频基帧数据，那么视频就会停顿，俗话叫卡死。
+
+这样的性能在国内极其不稳定的网络条件下实在是差强人意，同时，前文也提到，我们无法去动它的编码算法，那么为了使OpenMeetings能适应国内大多数的512k adsl拨号上网线路，我们只能在音频视频的设置上下功夫，在保证音频和视频的质量勉强可以让人接受的前提下，来建立一个较为流畅的系统。
+
+四、优化视频和音频参数以适应网络环境
+
+OpenMeetings音视频信号采集和压缩编码相关的参数信号都可以在它的系统配置文件config.xml中找到，其中音视频相关的部分如下：
+
+<!– Camera Settings for the FramesPerSecond   
+
+    fps:Number [optional] – The requested rate at which the camera should capture
+
+    data, in frames per second. The default value is 15.
+
+ –>   
+
+<framesPerSecond>30</framesPerSecond>
+
+<!– Camera Settings for the Bandwidth:   
+
+    bandwidth:Number [optional] – An integer that specifies the maximum amount
+
+    of bandwidth that the current outgoing video feed can use, in bytes per second.
+
+    To specify that Flash video can use as much bandwidth as needed to maintain
+
+    the value of frameQuality, pass 0 for bandwidth. The default value is 16384.
+
+ –>
+
+<!– These are the settings for the Quality-Modus *normal*
+
+    The Quality-Modus can be chosen in the Login-Box –>
+
+<bandwidthNeededNormal>16384</bandwidthNeededNormal>   
+
+<!– These are the settings for the Quality-Modus *best* –>   
+
+<bandwidthNeededBest>49152</bandwidthNeededBest>
+
+<!– Camera Settings for the Quality
+
+    quality:Number [optional] – An integer that specifies the required level of
+
+    picture quality, as determined by the amount of compression being applied to
+
+    each video frame. Acceptable values range from 1 (lowest quality, maximum
+
+    compression) to 100 (highest quality, no compression). To specify that picture
+
+    quality can vary as needed to avoid exceeding bandwidth, pass 0 for quality.
+
+    The default value is 0.
+
+ –>
+
+<!– These are the settings for the Quality-Modus *normal* –> 
+
+<camQualityNormal>85</camQualityNormal>    
+
+<!– These are the settings for the Quality-Modus *best* –>      
+
+<camQualityBest>90</camQualityBest>
+
+<!– Microphone Settings for the Rate:   
+
+    rate:Number -
+
+    The rate at which the microphone should capture sound, in kHz.
+
+    Acceptable values are 5, 8, 11, 22, and 44.
+
+    The default value is 8 kHz if your sound capture
+
+    device supports this value. Otherwise, the default value
+
+    is the next available capture level above 8 kHz that your sound
+
+    capture device supports, usually 11 kHz.
+
+ –>
+
+<!– Quality-Modus *normal* –>
+
+<microphoneRateNormal>22</microphoneRateNormal>
+
+<!– Microphone Settings Quality-Modus *best* –>   
+
+<microphoneRateBest>44</microphoneRateBest> 
+
+       framesPerSecond：视频信号每秒的帧数，FPS
+
+       bandwidth：带宽要求（单路视频的带宽）
+
+       camQuality：每个视频帧信号压缩后的质量，无压缩的视频质量为100%
+
+microphoneRate：麦克音频信号的采样率
+
+       在OpenMeetings中，我们必须根据用户的线路特点来设计默认的音频视频参数，才能使大多数用户能在一个相对流畅的条件下参与视频会议，前文已经大致介绍了视频分辨率、音频采用率、FPS与数据码流的关系，下面我们列出几个典型配置所需的带宽（经验值）：
+
+l   视频分辨率320*240，音频采用率44k，FPS30，带宽56KB+16KB
+
+l   视频分辨率240*180，音频采用率22k，FPS15，带宽32KB+10KB
+
+l   视频分辨率160*120，音频采用率22k，FPS5，带宽16KB+10KB
+
+如果我们采用的设置与实际线路的上行带宽不一致，会出现什么情况呢？我们分析的结果以及实际测试的结果是一致的，即延时会越来越长，直到超过了缓冲，然后直接出现大跨度的跳帧，然后又开始延时，周而复始。
+
+       在做二次开发的时候，我们尝试着将默认的 FPS参数改为5，并且在客户端让客户可以根据自己的线路状况调节。将默认的视频分辨率设置为240*180，同时提供320*240和160*120高低两种选择；另外，将音频采样率默认为22K，同时提供44K和11K两种选择。
+
+经过这样的改造后，基本可以满足各种线路的接入带宽要求。即使最差的512KADSL线路，选用最低的设置也能和其它线路的用户比较流畅地视频和音频交互。
+
+五、OpenMeetings的延时和RED5缓存
+
+       上一节提到，OpenMeetings的延时主要是音视频质量与带宽不匹配或者线路质量原因引起的。同时，它也和RED5的缓存设置存在一定的联系。
+
+我们知道，RED5缓存的设置有助于改善视频和音频质量，比如设置一定的接收缓存，可以将客户端上行的UDP数据包更好地组装，最终使得转发的数据更完整。但缓存过大，在网络接入状态不稳定的时候，会使系统延时逐渐增加，最好因为不同客户端的同步原因而不得不丢弃部分数据，直接造成跳帧。
+
+因此，我们的建议是，根据部署的环境及大部分用户的接入线路来设置RED5的缓存。如果我们部署在较好的网络环境下，如局域网，或者用户的接入线路大部分都是光纤线路，我们可以设置比较小的缓存，以避免延时造成的困惑。而在线路状况不佳的情况、音频视频丢帧或失真比较严重，不妨设置比较大的缓存，以改善质量。
+
+RED5的缓存参数设置文件：/red5/conf/red5. properties。红色字体部分时相关的缓存设置参数。
+
+# RTMP
+rtmp.host=0.0.0.0
+rtmp.port=1935
+rtmp.event_threads_core=16
+rtmp.event_threads_max=64
+# event threads queue: -1 unbounded, 0 direct (no queue), n bounded queue
+rtmp.event_threads_queue=0
+rtmp.event_threads_keepalive=60
+rtmp.send_buffer_size=200
+rtmp.receive_buffer_size=200
+rtmp.ping_interval=5000
+rtmp.max_inactivity=60000
+rtmp.tcp_nodelay=true
+
+六、OpenMeetings对虚拟视频MvBox的支持问题
+
+       Flash对虚拟视频MvBox的支持有点Bug，这个问题主要出现在FireFox中，很容易引起整个Flash的崩溃。经过多次试验，发现Flash For FireFox的版本只有在视频分辨率设置宽高比为4:3时才不会引起崩溃。
+
+七、后记
+
+与当前C/S架构下的视频会议普遍采用H.264或者MPEG4编码的情况相比，Flash对Webcam视频的编解码已大大落后了，从带宽和画质目前都无法和C/S架构相比。当然，从发展的角度来讲，FMS和RED5都已经相继开始支持h.264编码，Adobe也推出了自己的支持H.264的编码器可用于和FMS或RED5配合实现高质量的直播，看来在视频会议的webcam采集和编码上将来也应该会支持H.264，这将会给OpenMeetings真正在公网上进入实用阶段打下坚实的基础，但愿这个将来不会太遥远。
